@@ -3,7 +3,14 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Optional
 import logging
+import yaml
+import sys
 
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger('retail_forecast')
 
 class DataLoader:
@@ -73,7 +80,7 @@ class DataLoader:
             output_path = self.processed_dir / f"{name}.parquet"
             df.to_parquet(output_path)
             logger.info(f"Saved processed {name} to {output_path}")
-            
+    
     def load_processed_data(self, name: str) -> Optional[pd.DataFrame]:
         """Load a processed dataset"""
         file_path = self.processed_dir / f"{name}.parquet"
@@ -93,3 +100,47 @@ class DataLoader:
             'start_date': sales_data['date'].min(),
             'end_date': sales_data['date'].max()
         }
+
+def load_config():
+    """Load configuration from YAML file"""
+    try:
+        with open('config/config.yaml', 'r') as f:
+            return yaml.safe_load(f)
+    except FileNotFoundError:
+        logger.error("Config file not found: config/config.yaml")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        logger.error(f"Error parsing config file: {str(e)}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    try:
+        # Load configuration
+        logger.info("Loading configuration...")
+        config = load_config()
+        
+        # Initialize data loader
+        logger.info("Initializing DataLoader...")
+        loader = DataLoader(config)
+        
+        # Load raw data
+        logger.info("Loading raw data files...")
+        data_dict = loader.load_raw_data()
+        logger.info(f"Successfully loaded {len(data_dict)} datasets")
+        
+        # Get date range info
+        date_range = loader.get_date_range(data_dict)
+        logger.info(f"Data spans from {date_range['start_date']} to {date_range['end_date']}")
+        
+        # Save processed data
+        logger.info("Saving processed data...")
+        loader.save_processed_data(data_dict)
+        
+        logger.info("Data loading and processing completed successfully!")
+        
+    except FileNotFoundError as e:
+        logger.error(f"File not found error: {str(e)}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        sys.exit(1)
