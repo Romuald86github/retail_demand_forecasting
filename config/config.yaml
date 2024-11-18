@@ -1,0 +1,17 @@
+paths:
+  data_dir: "data/raw"
+  processed_dir: "data/processed"
+  models_dir: "models/trained_models"
+  predictions_dir: "predictions"
+  logs_dir: "logs"
+
+data:
+  date_col: "date"
+  target_col: "quantity"
+  id_cols: ["store_id", "item_id"]
+
+forecasting:
+  historical_window: 90
+  forecast_horizon: 30
+  train_end_date: "2024-01-01"
+  val_end_date: "2024-02-01"
