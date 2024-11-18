@@ -1,5 +1,5 @@
 paths:
-  data_dir: "data/raw"
+  data_dir: "/Users/romualdchristialtcheutchoua/Downloads"
   processed_dir: "data/processed"
   models_dir: "models/trained_models"
   predictions_dir: "predictions"
@@ -11,7 +11,73 @@ data:
   id_cols: ["store_id", "item_id"]
 
 forecasting:
-  historical_window: 90
-  forecast_horizon: 30
+  historical_window: 90  # days of history to use for each prediction
+  forecast_horizon: 30   # days ahead to predict
   train_end_date: "2024-01-01"
   val_end_date: "2024-02-01"
+  test_start_date: "2024-02-01"
+
+features:
+  time_features:
+    - "dayofweek"
+    - "month"
+    - "week"
+    - "is_weekend"
+    - "is_month_start"
+    - "is_month_end"
+  
+  rolling_windows: [7, 14, 30]  # Days for rolling statistics
+  
+  categorical_features:
+    - dept_name
+    - class_name
+    - subclass_name
+    - item_type
+    - division
+    - format
+    - city
+
+models:
+  lgbm:
+    enabled: true
+    params:
+      objective: regression
+      metric: rmse
+      boosting_type: gbdt
+      verbose: -1
+    tune_params:
+      num_leaves: [20, 100]
+      learning_rate: [0.01, 0.1]
+      feature_fraction: [0.5, 1.0]
+      bagging_fraction: [0.5, 1.0]
+      min_child_samples: [10, 100]
+
+  xgboost:
+    enabled: true
+    params:
+      objective: reg:squarederror
+      eval_metric: rmse
+      verbosity: 0
+    tune_params:
+      max_depth: [3, 10]
+      learning_rate: [0.01, 0.1]
+      n_estimators: [100, 1000]
+      subsample: [0.5, 1.0]
+      colsample_bytree: [0.5, 1.0]
+
+  catboost:
+    enabled: true
+    params:
+      loss_function: RMSE
+      verbose: False
+    tune_params:
+      depth: [4, 10]
+      learning_rate: [0.01, 0.1]
+      l2_leaf_reg: [1, 10]
+      iterations: [100, 1000]
+
+training:
+  validation_window: 30  # days to use for validation
+  n_trials: 50          # number of trials for hyperparameter optimization
+  early_stopping_rounds: 50
+  random_state: 42
