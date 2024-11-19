@@ -38,13 +38,22 @@ class DataLoader:
         for name, filename in self.required_files.items():
             file_path = self.data_dir / filename
             try:
+                # Log the file being loaded
+                logger.info(f"Loading {filename}...")
                 df = pd.read_csv(file_path)
+                # Log the initial shape and data types
+                logger.info(f"Initial {name} shape: {df.shape}")
+                logger.info(f"Initial {name} dtypes:\n{df.dtypes}")
+                
                 df = self._initial_preprocessing(df, name)
                 data_dict[name] = df
-                logger.info(f"Loaded {name}: {df.shape}")
+                logger.info(f"Successfully processed {name}: {df.shape}")
             except FileNotFoundError:
                 missing_files.append(filename)
                 logger.error(f"File not found: {filename}")
+            except Exception as e:
+                logger.error(f"Error processing {filename}: {str(e)}")
+                raise
                 
         if missing_files:
             raise FileNotFoundError(f"Missing required files: {missing_files}")
@@ -55,20 +64,48 @@ class DataLoader:
         """Initial preprocessing of loaded data"""
         df = df.copy()
         
-        # Convert date columns
-        if 'date' in df.columns:
-            df['date'] = pd.to_datetime(df['date'])
+        try:
+            # Convert date columns
+            if 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date'])
+                logger.info(f"Converted date column for {name}")
             
-        # Convert ID columns to int
-        id_cols = ['store_id', 'item_id']
-        for col in id_cols:
-            if col in df.columns:
-                df[col] = df[col].astype(int)
-                
-        # Handle specific dataset preprocessing
-        if name in ['sales', 'online']:
-            df['quantity'] = df['quantity'].clip(lower=0)
-            df['price_base'] = df['price_base'].clip(lower=0)
+            # Handle ID columns based on the dataset
+            if name in ['sales', 'online', 'stores', 'catalog']:
+                # For these datasets, IDs should be numeric
+                id_cols = ['store_id', 'item_id']
+                for col in id_cols:
+                    if col in df.columns:
+                        # First check if we need to handle hex or other formats
+                        if df[col].dtype == 'object':
+                            # Try to convert hex to int if present
+                            try:
+                                df[col] = df[col].apply(lambda x: int(str(x), 16) 
+                                                      if isinstance(x, str) and 'x' in str(x).lower() 
+                                                      else int(x))
+                            except ValueError:
+                                # If conversion fails, create a mapping
+                                unique_values = df[col].unique()
+                                id_mapping = {val: idx for idx, val in enumerate(unique_values)}
+                                df[col] = df[col].map(id_mapping)
+                        else:
+                            df[col] = df[col].astype(int)
+                        logger.info(f"Converted {col} for {name}")
+            
+            # Handle specific dataset preprocessing
+            if name in ['sales', 'online']:
+                # Handle quantity and price
+                df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0).clip(lower=0)
+                df['price_base'] = pd.to_numeric(df['price_base'], errors='coerce').fillna(0).clip(lower=0)
+                logger.info(f"Processed quantity and price columns for {name}")
+            
+            # Log the final data types
+            logger.info(f"Final {name} dtypes:\n{df.dtypes}")
+            
+        except Exception as e:
+            logger.error(f"Error in preprocessing {name}: {str(e)}")
+            logger.error(f"Problematic columns:\n{df.dtypes}")
+            raise
             
         return df
     
@@ -143,4 +180,7 @@ if __name__ == "__main__":
         sys.exit(1)
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
+        logger.error(f"Error details: {str(e.__class__.__name__)}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
         sys.exit(1)
