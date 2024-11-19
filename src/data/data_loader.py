@@ -27,7 +27,7 @@ class DataLoader:
             'matrix': 'actual_matrix.csv',
             'catalog': 'catalog.csv',
             'stores': 'stores.csv',
-            'test': 'test.csv'
+            'test': 'test(2).csv'  # Updated test file name
         }
         
     def load_raw_data(self) -> Dict[str, pd.DataFrame]:
@@ -99,6 +99,12 @@ class DataLoader:
                 df['price_base'] = pd.to_numeric(df['price_base'], errors='coerce').fillna(0).clip(lower=0)
                 logger.info(f"Processed quantity and price columns for {name}")
             
+            # Drop unnamed columns if they exist
+            unnamed_cols = [col for col in df.columns if 'Unnamed' in col]
+            if unnamed_cols:
+                df = df.drop(columns=unnamed_cols)
+                logger.info(f"Dropped unnamed columns: {unnamed_cols}")
+            
             # Log the final data types
             logger.info(f"Final {name} dtypes:\n{df.dtypes}")
             
@@ -111,24 +117,45 @@ class DataLoader:
     
     def save_processed_data(self, data: Dict[str, pd.DataFrame]):
         """Save processed datasets"""
-        self.processed_dir.mkdir(parents=True, exist_ok=True)
-        
-        for name, df in data.items():
-            output_path = self.processed_dir / f"{name}.parquet"
-            df.to_parquet(output_path)
-            logger.info(f"Saved processed {name} to {output_path}")
+        try:
+            self.processed_dir.mkdir(parents=True, exist_ok=True)
+            
+            for name, df in data.items():
+                output_path = self.processed_dir / f"{name}.parquet"
+                try:
+                    df.to_parquet(output_path, index=False)
+                    logger.info(f"Saved processed {name} to {output_path}")
+                except Exception as e:
+                    # Try saving as CSV if parquet fails
+                    csv_path = self.processed_dir / f"{name}.csv"
+                    df.to_csv(csv_path, index=False)
+                    logger.warning(f"Failed to save as parquet, saved {name} as CSV instead: {csv_path}")
+                    logger.error(f"Parquet save error: {str(e)}")
+            
+        except Exception as e:
+            logger.error(f"Error saving processed data: {str(e)}")
+            raise
     
     def load_processed_data(self, name: str) -> Optional[pd.DataFrame]:
         """Load a processed dataset"""
-        file_path = self.processed_dir / f"{name}.parquet"
+        parquet_path = self.processed_dir / f"{name}.parquet"
+        csv_path = self.processed_dir / f"{name}.csv"
         
-        if not file_path.exists():
-            logger.warning(f"Processed file not found: {file_path}")
+        try:
+            if parquet_path.exists():
+                df = pd.read_parquet(parquet_path)
+                logger.info(f"Loaded processed {name} from parquet: {df.shape}")
+                return df
+            elif csv_path.exists():
+                df = pd.read_csv(csv_path)
+                logger.info(f"Loaded processed {name} from csv: {df.shape}")
+                return df
+            else:
+                logger.warning(f"Processed file not found for {name}")
+                return None
+        except Exception as e:
+            logger.error(f"Error loading processed data {name}: {str(e)}")
             return None
-            
-        df = pd.read_parquet(file_path)
-        logger.info(f"Loaded processed {name}: {df.shape}")
-        return df
         
     def get_date_range(self, data_dict: Dict[str, pd.DataFrame]) -> Dict[str, pd.Timestamp]:
         """Get date range of the data"""
