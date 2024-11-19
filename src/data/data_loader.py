@@ -27,7 +27,7 @@ class DataLoader:
             'matrix': 'actual_matrix.csv',
             'catalog': 'catalog.csv',
             'stores': 'stores.csv',
-            'test': 'test(2).csv'  # Updated test file name
+            'test': 'test2.csv'  # Updated test file name
         }
         
     def load_raw_data(self) -> Dict[str, pd.DataFrame]:
